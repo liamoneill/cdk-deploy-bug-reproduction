@@ -26,6 +26,24 @@ $ echo $?
 0
 ```
 
+Visualising the deploy's `WorkGraph`, there is a cycle between the first stack and the shared asset.
+
+The stacks share the same asset because they both deploy a Lambda function bundled from the same directory.
+
+![WorkGraph](./graph-with-cycle.png)
+
+This cycle is explained by the publish step depending on its parent stack's dependencies:
+https://github.com/aws/aws-cdk/blob/bbdb16ad65b1217901f92782a74a6f13222cd684/packages/aws-cdk/lib/util/work-graph-builder.ts#L73-L80
+
+Why does the deploy command exit abruptly without an error...
+
+During my debugging I noticed that when an exception is thrown from inside the recursed graph traversal code it's possible for `active[x.type]--;` to be ran twice for the same node: once before call `start()` and again after an error is caught.
+https://github.com/aws/aws-cdk/blob/bbdb16ad65b1217901f92782a74a6f13222cd684/packages/aws-cdk/lib/util/work-graph.ts#L168-L178
+
+This means that in the final `start()` call `totalActive() === -1` and therefore the final error check is skipped and the graph traversal exits without throwing
+https://github.com/aws/aws-cdk/blob/bbdb16ad65b1217901f92782a74a6f13222cd684/packages/aws-cdk/lib/util/work-graph.ts#L154-L162
+
+
 # Versions effected
 
 The bug appears to have been introduced between `v2.76.0` & `v2.80.0` (the version used in the reproduction).
@@ -60,7 +78,3 @@ f360c023dafc7a0c56111a8b7dee3f8a3e9ec7c69beb27897209cc6dab868aac:current_account
 f360c023dafc7a0c56111a8b7dee3f8a3e9ec7c69beb27897209cc6dab868aac:current_account-current_region-publish := pending asset-publish (f360c023dafc7a0c56111a8b7dee3f8a3e9ec7c69beb27897209cc6dab868aac:current_account-current_region-build,StackA)
 
 ```
-
-![WorkGraph](./graph-with-cycle.png)
-
-I suspect this behavior is explained by the [publish step depending on it's parent stack's dependencies](https://github.com/aws/aws-cdk/blob/v2.80.0/packages/aws-cdk/lib/util/work-graph-builder.ts#L78).
