@@ -1,21 +1,46 @@
 #!/usr/bin/env node
+
 import 'source-map-support/register';
+import path = require('path');
 import * as cdk from 'aws-cdk-lib';
-import { CdkAppStack } from '../lib/cdk-app-stack';
+import { Construct } from 'constructs';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Code, Function, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { AssetHashType } from 'aws-cdk-lib';
+
+class StackA extends cdk.Stack {
+  functionA: NodejsFunction;
+
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    this.functionA = new Function(this, 'Function', {
+      functionName: 'function-a',
+      runtime: Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: Code.fromAsset(path.join(__dirname, '../lambda-handler')),
+    });
+  }
+}
+
+class StackB extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: cdk.StackProps, functionA: Function) {
+    super(scope, id, props);
+
+    new Function(this, 'Function', {
+      functionName: 'function-b',
+      runtime: Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: Code.fromAsset(path.join(__dirname, '../lambda-handler')),
+      environment: {
+        FUNCTION_A: functionA.functionArn
+      }
+    });
+  }
+}
 
 const app = new cdk.App();
-new CdkAppStack(app, 'CdkAppStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
+const stackA = new StackA(app, 'StackA', {});
+new StackB(app, 'StackB', {}, stackA.functionA);
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});
+app.synth()
