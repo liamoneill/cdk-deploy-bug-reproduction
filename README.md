@@ -62,3 +62,5 @@ f360c023dafc7a0c56111a8b7dee3f8a3e9ec7c69beb27897209cc6dab868aac:current_account
 ```
 
 ![WorkGraph](./graph-with-cycle.png)
+
+I suspect this behavior is explained by the [publish step depending on it's parent stack's dependencies](https://github.com/aws/aws-cdk/blob/v2.80.0/packages/aws-cdk/lib/util/work-graph-builder.ts#L78).
